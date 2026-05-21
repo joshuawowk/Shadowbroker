@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Clock, Minus, Plus, ExternalLink, Brain, Loader2 } from 'lucide-react';
 import React, { useEffect, useRef, useCallback } from 'react';
 import WikiImage from '@/components/WikiImage';
+import { fetchWikipediaSummary } from '@/lib/wikimediaClient';
 import type { SelectedEntity, RegionDossier, FimiData } from "@/types/dashboard";
 import { useDataKeys } from '@/hooks/useDataStore';
 import { API_BASE } from '@/lib/api';
@@ -203,34 +204,37 @@ function resolveAircraftWikiTitle(model: string | undefined): string | null {
     return AIRCRAFT_WIKI[model] || resolveAcTypeWiki(model);
 }
 
-// Module-level cache for Wikipedia thumbnails (persists across re-renders)
-const _wikiThumbCache: Record<string, { url: string | null; loading: boolean }> = {};
-
+// Issue #220 (tg12): the previous implementation kept its own
+// module-local Wikipedia thumbnail cache and issued anonymous fetches
+// without `Api-User-Agent`. We now delegate to lib/wikimediaClient,
+// which sends the policy-compliant header and shares one cache with
+// WikiImage and useRegionDossier.
 function useAircraftImage(model: string | undefined): { imgUrl: string | null; wikiUrl: string | null; loading: boolean } {
-    const [, forceUpdate] = useState(0);
+    const [imgUrl, setImgUrl] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
     const wikiTitle = resolveAircraftWikiTitle(model) || undefined;
     const wikiUrl = wikiTitle ? `https://en.wikipedia.org/wiki/${wikiTitle.replace(/ /g, '_')}` : null;
 
     useEffect(() => {
-        if (!wikiTitle) return;
-        const key = wikiTitle;
-        if (_wikiThumbCache[key]) return; // Already fetched or in-flight
-        _wikiThumbCache[key] = { url: null, loading: true };
-        fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiTitle)}`)
-            .then(r => r.json())
-            .then(d => {
-                _wikiThumbCache[key] = { url: d.thumbnail?.source || null, loading: false };
-                forceUpdate(n => n + 1);
-            })
-            .catch(() => {
-                _wikiThumbCache[key] = { url: null, loading: false };
-                forceUpdate(n => n + 1);
-            });
+        let cancelled = false;
+        if (!wikiTitle) {
+            setImgUrl(null);
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        fetchWikipediaSummary(wikiTitle).then((summary) => {
+            if (cancelled) return;
+            setImgUrl(summary?.thumbnail || null);
+            setLoading(false);
+        });
+        return () => {
+            cancelled = true;
+        };
     }, [wikiTitle]);
 
     if (!wikiTitle) return { imgUrl: null, wikiUrl: null, loading: false };
-    const cached = _wikiThumbCache[wikiTitle];
-    return { imgUrl: cached?.url || null, wikiUrl, loading: cached?.loading || false };
+    return { imgUrl, wikiUrl, loading };
 }
 
 

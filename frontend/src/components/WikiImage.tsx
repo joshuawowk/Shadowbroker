@@ -1,13 +1,17 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import ExternalImage from '@/components/ExternalImage';
-
-// Module-level cache: Wikipedia article title → thumbnail URL
-const _cache: Record<string, { url: string | null; done: boolean }> = {};
+import { fetchWikipediaSummary } from '@/lib/wikimediaClient';
 
 /**
  * WikiImage — displays a Wikipedia thumbnail for a given article URL.
- * Uses the Wikipedia REST API with a module-level cache (only fetches once per article).
+ *
+ * Issue #220 (tg12): this component previously had its own
+ * module-local Wikipedia fetch + cache. It now delegates to
+ * `lib/wikimediaClient`, which sends the policy-compliant
+ * `Api-User-Agent` header and shares one cache across every UI
+ * component that asks Wikipedia for an article summary (WikiImage,
+ * NewsFeed, useRegionDossier).
  *
  * Props:
  *   wikiUrl:  Full Wikipedia URL, e.g. "https://en.wikipedia.org/wiki/Boeing_787_Dreamliner"
@@ -26,31 +30,29 @@ export default function WikiImage({
   maxH?: string;
   accent?: string;
 }) {
-  const [, forceUpdate] = useState(0);
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Extract article title from URL
   const title = wikiUrl.replace(/^https?:\/\/[^/]+\/wiki\//, '');
 
   useEffect(() => {
-    if (!title || _cache[title]?.done) return;
-    if (_cache[title]) return; // In-flight
-    _cache[title] = { url: null, done: false };
-
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`)
-      .then((r) => r.json())
-      .then((d) => {
-        _cache[title] = { url: d.thumbnail?.source || d.originalimage?.source || null, done: true };
-        forceUpdate((n) => n + 1);
-      })
-      .catch(() => {
-        _cache[title] = { url: null, done: true };
-        forceUpdate((n) => n + 1);
-      });
+    let cancelled = false;
+    if (!title) {
+      setImgUrl(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    fetchWikipediaSummary(title).then((summary) => {
+      if (cancelled) return;
+      setImgUrl(summary?.thumbnail || null);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [title]);
-
-  const cached = _cache[title];
-  const imgUrl = cached?.url;
-  const loading = cached && !cached.done;
 
   return (
     <div className="pb-2">

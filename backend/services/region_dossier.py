@@ -4,7 +4,7 @@ import concurrent.futures
 from urllib.parse import quote
 import requests as _requests
 from cachetools import TTLCache
-from services.network_utils import fetch_with_curl
+from services.network_utils import fetch_with_curl, DEFAULT_USER_AGENT
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,25 @@ dossier_cache = TTLCache(maxsize=500, ttl=86400)
 
 # Nominatim requires max 1 req/sec — track last call time
 _nominatim_last_call = 0.0
+
+# Issue #218 / #219 (tg12): Wikimedia's User-Agent policy requires API
+# clients to identify themselves with a stable User-Agent that includes
+# a contact path. Bare "python-requests/x.y" or generic strings violate
+# the policy and risk getting blocked. We send the project default UA
+# (operator-overridable via SHADOWBROKER_USER_AGENT) on EVERY outbound
+# Wikimedia request, plus the policy-recommended Api-User-Agent which
+# Wikimedia explicitly accepts on top of the regular UA.
+#
+# This is documented and stable so a Wikimedia operator who wants to
+# rate-limit or contact us has a fixed identifier to grep for.
+_WIKIMEDIA_REQUEST_HEADERS = {
+    "User-Agent": DEFAULT_USER_AGENT,
+    "Api-User-Agent": (
+        f"{DEFAULT_USER_AGENT} "
+        "(+https://github.com/BigBodyCobain/Shadowbroker; "
+        "report issues at /issues)"
+    ),
+}
 
 
 def _reverse_geocode_offline(lat: float, lng: float) -> dict:
@@ -121,7 +140,13 @@ def _fetch_wikidata_leader(country_name: str) -> dict:
     """
     url = f"https://query.wikidata.org/sparql?query={quote(sparql)}&format=json"
     try:
-        res = fetch_with_curl(url, timeout=6)
+        # Issue #218 (tg12): Wikimedia's User-Agent policy requires
+        # outbound API traffic to be identifiable. fetch_with_curl()
+        # sends the project default, and we also add the Wikimedia-
+        # specific Api-User-Agent that the policy specifically asks
+        # for, since this request originates from a backend service
+        # that proxies on behalf of (potentially many) browser users.
+        res = fetch_with_curl(url, timeout=6, headers=_WIKIMEDIA_REQUEST_HEADERS)
         if res.status_code == 200:
             results = res.json().get("results", {}).get("bindings", [])
             if results:
@@ -147,7 +172,9 @@ def _fetch_local_wiki_summary(place_name: str, country_name: str = "") -> dict:
         slug = quote(name.replace(" ", "_"))
         url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{slug}"
         try:
-            res = fetch_with_curl(url, timeout=5)
+            # Issue #219 (tg12): identify ourselves to Wikimedia per
+            # their UA policy; see _fetch_wikidata_leader above.
+            res = fetch_with_curl(url, timeout=5, headers=_WIKIMEDIA_REQUEST_HEADERS)
             if res.status_code == 200:
                 data = res.json()
                 if data.get("type") != "disambiguation":

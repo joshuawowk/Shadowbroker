@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect } from 'react';
 import type { RegionDossier, SelectedEntity } from '@/types/dashboard';
+import { fetchWikipediaSummary, fetchWikidataSparql } from '@/lib/wikimediaClient';
 
 // ─── CACHE ─────────────────────────────────────────────────────────────────
 // Simple in-memory cache keyed by rounded lat/lng (0.1° ≈ 11km grid), 24h TTL.
@@ -114,7 +115,11 @@ async function fetchCountryData(countryCode: string) {
   return Array.isArray(data) ? data[0] || {} : data || {};
 }
 
-/** Fetch head of state + government type from Wikidata SPARQL (direct browser call). */
+/** Fetch head of state + government type from Wikidata SPARQL.
+ *
+ * Issue #218 (tg12): routes through lib/wikimediaClient so the
+ * Api-User-Agent header is set per Wikimedia's UA policy.
+ */
 async function fetchLeader(countryName: string) {
   if (!countryName) return { leader: 'Unknown', government_type: 'Unknown' };
   const safeName = countryName.replace(/"/g, '\\"').replace(/'/g, "\\'");
@@ -127,13 +132,11 @@ async function fetchLeader(countryName: string) {
       SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
     } LIMIT 1
   `;
-  const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(sparql)}&format=json`;
-  const res = await fetch(url, {
-    headers: { Accept: 'application/sparql-results+json' },
-  });
-  if (!res.ok) throw new Error(`Wikidata HTTP ${res.status}`);
-  const results = (await res.json()).results?.bindings || [];
-  if (results.length > 0) {
+  const results = await fetchWikidataSparql<{
+    leaderLabel?: { value: string };
+    govTypeLabel?: { value: string };
+  }>(sparql);
+  if (results && results.length > 0) {
     return {
       leader: results[0].leaderLabel?.value || 'Unknown',
       government_type: results[0].govTypeLabel?.value || 'Unknown',
@@ -142,27 +145,25 @@ async function fetchLeader(countryName: string) {
   return { leader: 'Unknown', government_type: 'Unknown' };
 }
 
-/** Fetch Wikipedia summary for a place (direct browser call). */
+/** Fetch Wikipedia summary for a place.
+ *
+ * Issue #219 (tg12): routes through lib/wikimediaClient so the
+ * Api-User-Agent header is set per Wikimedia's UA policy, AND the
+ * shared cache means consecutive useRegionDossier + WikiImage +
+ * NewsFeed lookups for the same article all hit the same slot.
+ */
 async function fetchLocalWikiSummary(placeName: string, countryName = '') {
   if (!placeName) return {};
   const candidates = [placeName];
   if (countryName) candidates.push(`${placeName}, ${countryName}`);
-
   for (const name of candidates) {
-    try {
-      const slug = encodeURIComponent(name.replace(/ /g, '_'));
-      const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`;
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data.type === 'disambiguation') continue;
+    const summary = await fetchWikipediaSummary(name);
+    if (summary) {
       return {
-        description: data.description || '',
-        extract: data.extract || '',
-        thumbnail: data.thumbnail?.source || '',
+        description: summary.description,
+        extract: summary.extract,
+        thumbnail: summary.thumbnail,
       };
-    } catch {
-      continue;
     }
   }
   return {};
