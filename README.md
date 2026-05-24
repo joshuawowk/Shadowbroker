@@ -174,7 +174,7 @@ ShadowBroker v0.9.7 ships **InfoNet** (decentralized intelligence mesh + Soverei
 | Channel | Privacy Status | Details |
 |---|---|---|
 | **Meshtastic / APRS** | **PUBLIC** | RF radio transmissions are public and interceptable by design. |
-| **InfoNet Gate Chat** | **OBFUSCATED** | Messages are obfuscated with gate personas and canonical payload signing, but NOT end-to-end encrypted. Metadata is not hidden. |
+| **InfoNet Gate Chat** | **OBFUSCATED** | Messages are obfuscated with gate personas and canonical payload signing, but NOT end-to-end encrypted. Metadata is not hidden despite being designed through Tor and Reticulum (Work in progress). |
 | **Dead Drop DMs** | **STRONGEST CURRENT LANE** | Token-based epoch mailbox with SAS word verification. Strongest lane in this build, but not yet confidently private. |
 | **Sovereign Shell governance** | **PUBLIC LEDGER** | Petitions, votes, upgrade hashes, and dispute stakes are signed events on a public hashchain. Pseudonymous via gate persona, but governance actions are intentionally observable. |
 | **Privacy primitives (RingCT / stealth / DEX)** | **NOT YET WIRED** | Locked Protocol contracts are in place, but the cryptographic scheme has not been chosen. The privacy-core Rust crate is the integration target for a future sprint. |
