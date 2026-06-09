@@ -83,6 +83,10 @@ READ_COMMANDS = frozenset({
     "sar_pin_click",
     # Analysis zones (OpenClaw map overlays)
     "list_analysis_zones",
+    # Recon / OSINT toolkit (server-side proxies, SSRF guarded)
+    "osint_lookup",
+    "osint_tools",
+    "entity_expand",
 })
 
 WRITE_COMMANDS = frozenset({
@@ -112,6 +116,8 @@ WRITE_COMMANDS = frozenset({
     "place_analysis_zone",
     "delete_analysis_zone",
     "clear_analysis_zones",
+    # Active recon (subnet device discovery)
+    "osint_sweep",
 })
 
 
@@ -780,6 +786,7 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
             query=str(args.get("query", "") or ""),
             limit=args.get("limit", 10),
             include_gdelt=bool(args.get("include_gdelt", True)),
+            include_telegram=bool(args.get("include_telegram", True)),
         )
         if _wants_compact(args):
             return {"ok": True, "data": _compact_query_result(result), "format": "compressed_v1"}
@@ -844,6 +851,26 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
         )
         if _wants_compact(args):
             return {"ok": True, "data": _compact_query_result(result), "format": "compressed_v1"}
+        return {"ok": True, "data": result}
+
+    if cmd == "osint_lookup":
+        from services.osint.openclaw_recon import run_osint_lookup
+        tool = str(args.get("tool", "") or args.get("lookup", "") or args.get("type", "") or "")
+        result = run_osint_lookup(tool, args)
+        return {"ok": True, "data": result, "tool": tool.strip().lower()}
+
+    if cmd == "osint_tools":
+        from services.osint.openclaw_recon import osint_tool_help
+        return {"ok": True, "data": osint_tool_help()}
+
+    if cmd == "osint_sweep":
+        from services.osint.openclaw_recon import run_osint_sweep
+        result = run_osint_sweep(args)
+        return {"ok": True, "data": result}
+
+    if cmd == "entity_expand":
+        from services.osint.openclaw_recon import run_entity_expand
+        result = run_entity_expand(args)
         return {"ok": True, "data": result}
 
     if cmd == "get_report":

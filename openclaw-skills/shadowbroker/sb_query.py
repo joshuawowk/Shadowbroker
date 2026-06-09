@@ -722,6 +722,36 @@ class ShadowBrokerClient:
         r = await self._get("/api/ai/summary")
         return r.json()
 
+    async def osint_lookup(self, tool: str, **kwargs) -> dict:
+        """Run a passive OSINT recon lookup (IP, DNS, WHOIS, sanctions, CVE, etc.)."""
+        args = {"tool": tool, **kwargs}
+        result = await self.send_command("osint_lookup", args)
+        if not result.get("ok"):
+            raise RuntimeError(result.get("detail") or "osint_lookup failed")
+        return result.get("data") or result
+
+    async def osint_tools(self) -> dict:
+        """List available OSINT recon tools and entity-expand types."""
+        result = await self.send_command("osint_tools")
+        if not result.get("ok"):
+            raise RuntimeError(result.get("detail") or "osint_tools failed")
+        return result.get("data") or result
+
+    async def entity_expand(self, entity_type: str, entity_id: str, **kwargs) -> dict:
+        """Expand an entity relationship graph."""
+        args = {"type": entity_type, "id": entity_id, **kwargs}
+        result = await self.send_command("entity_expand", args)
+        if not result.get("ok"):
+            raise RuntimeError(result.get("detail") or "entity_expand failed")
+        return result.get("data") or result
+
+    async def osint_sweep(self, ip: str, cidr: int = 24) -> dict:
+        """Active subnet device discovery (requires full OpenClaw access tier)."""
+        result = await self.send_command("osint_sweep", {"ip": ip, "cidr": cidr})
+        if not result.get("ok"):
+            raise RuntimeError(result.get("detail") or "osint_sweep failed")
+        return result.get("data") or result
+
     # ── Encrypted DMs ─────────────────────────────────────────────
 
     async def send_encrypted_dm(self, recipient_pubkey: str, message: str) -> dict:

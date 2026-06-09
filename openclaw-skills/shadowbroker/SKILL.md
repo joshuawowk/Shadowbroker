@@ -126,7 +126,7 @@ The channel operates over HMAC-authenticated HTTP with body-integrity binding:
 | Method | What It Returns |
 |--------|----------------|
 | `await sb.get_telemetry()` | Fast-tier: flights, ships, satellites, SIGINT, LiveUAMap, CCTV, GPS jamming |
-| `await sb.get_slow_telemetry()` | Slow-tier: GDELT, news, earthquakes, markets, correlations |
+| `await sb.get_slow_telemetry()` | Slow-tier: GDELT, news, earthquakes, markets, correlations, Telegram OSINT, malware/cyber threats, SCM suppliers |
 | `await sb.get_report()` | Full structured intelligence report |
 
 **When to use**: Use `get_summary()` first. Use `get_layer_slice()` for the layers
@@ -148,6 +148,59 @@ Every layer returns maximum telemetry. Key enriched fields:
 | **GPS Jamming** | `lat`, `lng`, `name`/`region`, `intensity`, `source` |
 | **Earthquakes** | `lat`, `lng`, `magnitude`, `depth`, `place`, `time` |
 | **Correlations** | `type`, `severity`, `score`, `lat`, `lng`, `drivers` (triggering layers) |
+| **Telegram OSINT** | `title`, `description`, `channel`, `source`, `link`, `published`, `risk_score`, `coords` `[lat, lng]` |
+| **Malware Threats** | `ip`, `malware`, `threat_type`, `status`, `country`, `lat`, `lng` (Feodo + URLhaus) |
+| **Cyber Threats** | `id` (CVE), `name`, `vendor`, `product`, `severity`, `date` (CISA KEV) |
+| **SCM Suppliers** | `name`, `city`, `country`, `category`, `risk_level`, `active_threats`, `lat`, `lng` |
+
+**Layer aliases for `get_layer_slice` / `search_telemetry`:** `telegram` → `telegram_osint`, `malware`/`botnet` → `malware_threats`, `cyber`/`cisa`/`kev` → `cyber_threats`, `scm`/`suppliers` → `scm_suppliers`.
+
+### 1b. Recon / OSINT Toolkit
+
+The Recon panel lookups are available on the OpenClaw command channel — no need to hit `/api/osint/*` directly.
+
+```python
+# List supported tools
+await sb.send_command("osint_tools")
+
+# IP geolocation + threat context
+await sb.send_command("osint_lookup", {"tool": "ip", "ip": "8.8.8.8"})
+
+# DNS, WHOIS, certificate transparency
+await sb.send_command("osint_lookup", {"tool": "dns", "domain": "example.com"})
+await sb.send_command("osint_lookup", {"tool": "whois", "domain": "example.com"})
+await sb.send_command("osint_lookup", {"tool": "certs", "domain": "example.com"})
+
+# BGP/ASN, sanctions, CVE, MAC vendor, GitHub, breach check
+await sb.send_command("osint_lookup", {"tool": "bgp", "query": "AS15169"})
+await sb.send_command("osint_lookup", {"tool": "sanctions", "query": "Rosneft"})
+await sb.send_command("osint_lookup", {"tool": "cve", "cve": "CVE-2024-1234"})
+await sb.send_command("osint_lookup", {"tool": "mac", "mac": "00:11:22:33:44:55"})
+await sb.send_command("osint_lookup", {"tool": "github", "username": "octocat"})
+await sb.send_command("osint_lookup", {"tool": "leaks", "email": "user@example.com"})
+
+# Entity relationship graph (aircraft, vessel, ip, company, person, country)
+await sb.send_command("entity_expand", {"type": "ip", "id": "8.8.8.8"})
+await sb.send_command("entity_expand", {"type": "aircraft", "id": "N400QS", "icao24": "a0f011"})
+
+# Subnet sweep (full tier only — active Shodan InternetDB scan)
+await sb.send_command("osint_sweep", {"ip": "1.2.3.4", "cidr": 24})
+```
+
+| `osint_lookup` tool | Args | What you get |
+|---------------------|------|--------------|
+| `ip` | `ip` | Geo, ISP, ASN, proxy/hosting flags, sanctions cross-check |
+| `dns` | `domain` | A/AAAA/MX/NS/TXT records |
+| `whois` | `domain` | Registrar, dates, nameservers |
+| `certs` | `domain` | Certificate transparency hits |
+| `threats` | `query` (optional) | Aggregated threat intel |
+| `bgp` | `query` | ASN/prefix routing data |
+| `sanctions` | `query`, `schema`, `limit` | OFAC / sanctions index matches |
+| `cve` | `cve` | NVD CVE details |
+| `mac` | `mac` | Vendor OUI lookup |
+| `github` | `username` | Public profile metadata |
+| `leaks` | `email` | Breach exposure check |
+| `sweep_init` | `ip`, `cidr` | Passive geolocation context for a sweep target |
 
 ### 2. Pin Placement (AI Intel Map Layer)
 
