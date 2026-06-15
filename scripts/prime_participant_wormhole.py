@@ -19,6 +19,11 @@ write_wormhole_settings(
 tor = tor_service.start(target_port=8000)
 if tor.get("ok"):
     _write_env_value("MESH_ARTI_ENABLED", "true")
+    onion = str(tor.get("onion_address") or "").strip().rstrip("/")
+    if onion:
+        # Replicate-envelope HMAC checks X-Peer-Url against authenticated_push_peer_urls;
+        # fresh participants need their own onion in the push allowlist until fleet manifest sync.
+        _write_env_value("MESH_RELAY_PEERS", onion)
     get_settings.cache_clear()
 runtime = connect_wormhole(reason="participant_warmup")
 print(json.dumps({"ok": True, "tor": tor, "runtime": runtime}))
