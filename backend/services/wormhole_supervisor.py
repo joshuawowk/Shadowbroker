@@ -27,6 +27,13 @@ _STATE_CACHE_TS = 0.0
 _STATE_CACHE_TTL_S = 2.0
 _ARTI_PROOF_CACHE: dict[str, Any] = {"port": 0, "ok": False, "ts": 0.0}
 _ARTI_PROOF_CACHE_TTL_S = 30.0
+_ARTI_STATUS_CACHE: dict[str, Any] = {"port": 0, "ready": False, "ts": 0.0}
+_ARTI_STATUS_FAIL_TTL_S = 4.0
+_ARTI_PROBE_LOCK = threading.Lock()
+_ARTI_SOCKS_FAILURES = 0
+_ARTI_LAST_TOR_RECOVERY_TS = 0.0
+_ARTI_TOR_RECOVERY_COOLDOWN_S = 45.0
+_ARTI_SOCKS_CONNECT_TIMEOUT_S = 5.0
 _PRIVATE_CLEARNET_FALLBACK_WINDOW_S = 300.0
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -70,16 +77,43 @@ _WORMHOLE_ENV_EXPLICIT = {
     "PRIVACY_CORE_MIN_VERSION",
 }
 
-def _check_arti_ready() -> bool:
-    from services.config import get_settings
+def invalidate_arti_ready_cache() -> None:
+    _ARTI_PROOF_CACHE.update({"port": 0, "ok": False, "ts": 0.0})
+    _ARTI_STATUS_CACHE.update({"port": 0, "ready": False, "ts": 0.0})
 
-    settings = get_settings()
-    if not bool(settings.MESH_ARTI_ENABLED):
-        return False
-    socks_port = int(settings.MESH_ARTI_SOCKS_PORT or 9050)
+
+def _maybe_recover_tor_socks_transport(socks_port: int) -> None:
+    global _ARTI_SOCKS_FAILURES, _ARTI_LAST_TOR_RECOVERY_TS
+
+    _ARTI_SOCKS_FAILURES += 1
+    if _ARTI_SOCKS_FAILURES < 3:
+        return
+    now = time.time()
+    if (now - _ARTI_LAST_TOR_RECOVERY_TS) < _ARTI_TOR_RECOVERY_COOLDOWN_S:
+        return
+    _ARTI_LAST_TOR_RECOVERY_TS = now
+    _ARTI_SOCKS_FAILURES = 0
     try:
-        with socket.create_connection((WORMHOLE_HOST, socks_port), timeout=2.0) as sock:
-            # SOCKS5 greeting: version 5, 1 auth method, no-auth.
+        from services.tor_hidden_service import tor_service
+
+        logger.warning(
+            "Tor SOCKS on port %s is wedged — recycling Tor hidden service",
+            socks_port,
+        )
+        tor_service.stop()
+        tor_service.start(target_port=8000)
+        invalidate_arti_ready_cache()
+    except Exception as exc:
+        logger.warning("Tor SOCKS recovery failed: %s", exc)
+
+
+def _probe_arti_socks_ready(socks_port: int) -> bool:
+    try:
+        with socket.create_connection(
+            (WORMHOLE_HOST, socks_port),
+            timeout=_ARTI_SOCKS_CONNECT_TIMEOUT_S,
+        ) as sock:
+            sock.settimeout(_ARTI_SOCKS_CONNECT_TIMEOUT_S)
             sock.sendall(b"\x05\x01\x00")
             response = sock.recv(2)
             if response != b"\x05\x00":
@@ -88,6 +122,53 @@ def _check_arti_ready() -> bool:
     except Exception as exc:
         logger.warning("Arti SOCKS check failed on port %s: %s", socks_port, exc)
         return False
+    return True
+
+
+def _check_arti_ready(*, force: bool = False) -> bool:
+    from services.config import get_settings
+
+    settings = get_settings()
+    if not bool(settings.MESH_ARTI_ENABLED):
+        return False
+    socks_port = int(settings.MESH_ARTI_SOCKS_PORT or 9050)
+    now = time.time()
+    if not force:
+        if (
+            int(_ARTI_STATUS_CACHE.get("port", 0) or 0) == socks_port
+            and (now - float(_ARTI_STATUS_CACHE.get("ts", 0.0) or 0.0)) < _ARTI_STATUS_FAIL_TTL_S
+        ):
+            return bool(_ARTI_STATUS_CACHE.get("ready"))
+        if (
+            int(_ARTI_PROOF_CACHE.get("port", 0) or 0) == socks_port
+            and bool(_ARTI_PROOF_CACHE.get("ok"))
+            and (now - float(_ARTI_PROOF_CACHE.get("ts", 0.0) or 0.0)) < _ARTI_PROOF_CACHE_TTL_S
+        ):
+            return True
+
+    with _ARTI_PROBE_LOCK:
+        now = time.time()
+        if not force:
+            if (
+                int(_ARTI_STATUS_CACHE.get("port", 0) or 0) == socks_port
+                and (now - float(_ARTI_STATUS_CACHE.get("ts", 0.0) or 0.0)) < _ARTI_STATUS_FAIL_TTL_S
+            ):
+                return bool(_ARTI_STATUS_CACHE.get("ready"))
+            if (
+                int(_ARTI_PROOF_CACHE.get("port", 0) or 0) == socks_port
+                and bool(_ARTI_PROOF_CACHE.get("ok"))
+                and (now - float(_ARTI_PROOF_CACHE.get("ts", 0.0) or 0.0)) < _ARTI_PROOF_CACHE_TTL_S
+            ):
+                return True
+
+        if not _probe_arti_socks_ready(socks_port):
+            _ARTI_STATUS_CACHE.update({"port": socks_port, "ready": False, "ts": now})
+            _maybe_recover_tor_socks_transport(socks_port)
+            return False
+
+        global _ARTI_SOCKS_FAILURES
+        _ARTI_SOCKS_FAILURES = 0
+        _ARTI_STATUS_CACHE.update({"port": socks_port, "ready": True, "ts": now})
 
     now = time.time()
     if (
@@ -110,12 +191,13 @@ def _check_arti_ready() -> bool:
         is_tor = bool(payload.get("IsTor")) or bool(payload.get("is_tor"))
         if not (response.ok and is_tor):
             logger.warning(
-                "Arti Tor proof failed (status=%s is_tor=%s) — SOCKS is up, using Arti anyway",
+                "Arti Tor proof failed (status=%s is_tor=%s)",
                 getattr(response, "status_code", "unknown"),
                 payload.get("IsTor", payload.get("is_tor")),
             )
-            _ARTI_PROOF_CACHE.update({"port": socks_port, "ok": True, "ts": now})
-            return True
+            _ARTI_PROOF_CACHE.update({"port": socks_port, "ok": False, "ts": now})
+            _ARTI_STATUS_CACHE.update({"port": socks_port, "ready": False, "ts": now})
+            return False
         _ARTI_PROOF_CACHE.update({"port": socks_port, "ok": True, "ts": now})
         return True
     except Exception as exc:

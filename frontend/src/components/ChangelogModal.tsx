@@ -4,101 +4,92 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
-  Bot,
   Network,
   KeyRound,
   Shield,
-  Plane,
   Bug,
   Heart,
   MessageSquare,
-  Radar,
-  Factory,
-  Anchor,
-  Search,
+  Lock,
+  Users,
+  Radio,
 } from 'lucide-react';
 
-const CURRENT_VERSION = '0.9.82';
+const CURRENT_VERSION = '0.9.83';
 const STORAGE_KEY = `shadowbroker_changelog_v${CURRENT_VERSION}`;
-const RELEASE_TITLE = 'Telegram OSINT + Osiris Intel Ports + OpenClaw Recon';
+const RELEASE_TITLE = 'Infonet Gate Messaging + DM Protocols Live';
 
 const HEADLINE_FEATURES = [
   {
+    icon: <Lock size={20} className="text-purple-400" />,
+    accent: 'purple' as const,
+    title: 'Gate Messaging — End-to-End on the Hashchain',
+    subtitle:
+      'Encrypted MLS gate rooms now carry live chat over your private Infonet hashchain. Messages replicate across participant nodes via swarm push/pull — only gate members can decrypt.',
+    details: [
+      'Gate messages append as signed `gate_message` events on each participant\'s private chain; peers sync ciphertext through the mesh without exposing room keys to outsiders.',
+      'Swarm replication keeps late joiners and offline nodes convergent — pull missing blocks, push new envelopes to known gate peers.',
+      'MLS group crypto (privacy-core) handles forward secrecy and membership changes; the UI surfaces delivery, key rotation, and compat approval when room epochs advance.',
+    ],
+    callToAction: 'MESH CHAT → GATES → CREATE OR JOIN A ROOM',
+  },
+  {
     icon: <MessageSquare size={20} className="text-cyan-400" />,
     accent: 'cyan' as const,
-    title: 'Telegram OSINT Map Layer',
+    title: 'Direct Messages — Short Address, Request, Encrypt',
     subtitle:
-      'Public war/conflict Telegram channels scraped hourly, risk-scored, geoparsed to metro anchors, and plotted as clickable map pins with inline photo/video.',
+      'DMs are fully operational over the wormhole/Tor lane: share your short wormhole address out-of-band, accept a contact request, then exchange ratchet-encrypted messages.',
     details: [
-      'Incremental merge — only new posts are fetched; known links stop the parser early so channels are not re-scraped redundantly.',
-      'Metro-anchor geocoding (Tel Aviv, Kyiv, NYC, Beijing, etc.) keeps Telegram pins off news/threat-alert centroids so pins stay clickable above the threat intercept overlays.',
-      'Threat-intercept styled popups with inline media via `/api/telegram/media` proxy. Configure channels via `TELEGRAM_OSINT_CHANNELS` (see `.env.example`).',
+      'Contact flow: outbound request → peer approve/deny → mutual DM session with double-ratchet bundles and mailbox claim keys.',
+      'No public phonebook — addresses are intentionally short and meant to be exchanged like a phone number or email, not discovered from a directory.',
+      'Fleet-tested across multiple onion participants: request, accept, decrypt, and reply paths verified on live Tor hidden services.',
     ],
-    callToAction: 'TOGGLE TELEGRAM OSINT IN DATA LAYERS',
+    callToAction: 'MESH CHAT → DIRECT → SHARE SHORT ADDRESS',
   },
   {
-    icon: <Radar size={20} className="text-purple-400" />,
-    accent: 'purple' as const,
-    title: 'Osiris-Derived Intel Ports (Recon, SCM, Entity Graph)',
-    subtitle:
-      'Server-side recon toolkit, supply-chain risk overlay, entity relationship graphs, malware/C2 hotspots, CISA KEV cyber feed, sanctions index, and submarine cable routes — all SSRF-guarded and local-operator proxied.',
-    details: [
-      'Recon Toolkit panel: IP geolocation, DNS, WHOIS, certs, BGP/ASN, OFAC sanctions, CVE, MAC vendor, GitHub profile, breach checks, and InternetDB subnet sweeps.',
-      'SCM panel cross-references Tier 1/2 fabs (TSMC, Samsung, CATL, etc.) against earthquakes, wildfires, and GDELT conflict proximity.',
-      'Entity Graph expands aircraft, vessels, companies, persons, IPs, and countries via Wikidata + OFAC + live telemetry store. Attribution: `backend/third_party/osiris/NOTICE.md`.',
-      'Malware C2 (abuse.ch Feodo + URLhaus) and Cyber Threats (CISA KEV) layers opt-in on the slow tier. Submarine cables overlay from static TeleGeography-derived GeoJSON.',
-    ],
-    callToAction: 'OPEN RECON • SCM • ENTITY GRAPH IN LEFT SIDEBAR',
-  },
-  {
-    icon: <Bot size={20} className="text-amber-400" />,
+    icon: <Network size={20} className="text-amber-400" />,
     accent: 'cyan' as const,
-    title: 'OpenClaw Agent — Full Telemetry + Recon Parity',
+    title: 'Infonet Transport Hardening',
     subtitle:
-      'AI agents on the HMAC command channel now search, slice, and investigate the same data the operator sees — including Telegram, malware, cyber, SCM, and the full recon toolkit.',
+      'Tor/Arti warmup, SOCKS readiness, and terminal session lifecycle fixes so sovereign nodes actually join the mesh instead of sitting on NODE ARTI WARMING.',
     details: [
-      '`search_telemetry` and `search_news` index Telegram OSINT posts alongside news, GDELT, and CrowdThreat. `get_slow_telemetry` and `get_layer_slice` include `telegram_osint`, `malware_threats`, `cyber_threats`, and `scm_suppliers`.',
-      'New commands: `osint_lookup` (IP/DNS/WHOIS/sanctions/CVE/etc.), `entity_expand` (relationship graph), `osint_tools` (discovery), and `osint_sweep` (subnet scan — full access tier).',
-      'Layer aliases: `telegram`, `malware`/`botnet`, `cyber`/`cisa`/`kev`, `scm`/`suppliers`, `gfw`/`fishing`. Skill package: `openclaw-skills/shadowbroker/SKILL.md`.',
+      'Tor hidden service config always exposes SOCKS; readiness probes cache and recover wedged transports instead of blocking wormhole sync indefinitely.',
+      'Leaving the Infonet terminal now tears down wormhole prep, leaves the session, and stops Tor when the UI enabled it — no ghost connections after close.',
+      'Network stats distinguish real transport warmup from stale sync backoff so operators see actionable status instead of a permanent warming spinner.',
     ],
-    callToAction: 'AI INTEL PANEL → CONNECT AGENT → COPY HMAC SECRET',
+    callToAction: 'TOP RIGHT → ENTER INFONET → CHECK NODE STATUS',
   },
 ];
 
 const NEW_FEATURES = [
   {
-    icon: <Anchor size={18} className="text-cyan-400" />,
-    title: 'Global Fishing Watch in Settings',
-    desc: 'GFW API token exposed in onboarding and Settings → Maritime. Fishing activity layer backed by GFW when `GFW_API_TOKEN` is configured.',
+    icon: <Users size={18} className="text-purple-400" />,
+    title: 'Gate Swarm Replication',
+    desc: 'Participant nodes push and pull gate hashchain segments so encrypted room history converges across the fleet without a central relay.',
   },
   {
-    icon: <Factory size={18} className="text-orange-400" />,
-    title: 'Supply-Chain Risk Map Layer',
-    desc: 'SCM suppliers render as map markers with seismic, wildfire, and conflict proximity scoring. Panel alerts for CRITICAL/HIGH fabs.',
+    icon: <KeyRound size={18} className="text-cyan-400" />,
+    title: 'DM Contact Requests',
+    desc: 'Pending inbound/outbound access requests with approve, deny, and scoped per-node DM state — no cross-identity leakage in local storage.',
   },
   {
-    icon: <Shield size={18} className="text-red-400" />,
-    title: 'Malware C2 + CISA KEV Overlays',
-    desc: 'abuse.ch botnet C2 and URLhaus distribution URLs geolocated by country; CISA Known Exploited Vulnerabilities surfaced in cyber threats feed and slow-tier payload.',
+    icon: <Radio size={18} className="text-green-400" />,
+    title: 'Wormhole Session Teardown',
+    desc: 'Closing the Infonet terminal aborts in-flight wormhole prep, leaves the lane, and resets launcher busy state for clean re-entry.',
   },
   {
-    icon: <Search size={18} className="text-green-400" />,
-    title: 'OpenClaw Compact Search Path',
-    desc: 'Agents prefer `get_summary` → SSE `layer_changed` → `get_layer_slice` with per-layer versions. `brief_area`, `correlate_entity`, and `entities_near` include Telegram and malware context.',
-  },
-  {
-    icon: <Network size={18} className="text-purple-400" />,
-    title: 'Submarine Cable Overlay',
-    desc: 'Opt-in undersea cable routes from static TeleGeography-derived GeoJSON for infrastructure context on the map.',
+    icon: <Shield size={18} className="text-amber-400" />,
+    title: 'Fail-Closed Tor Proof',
+    desc: 'Onion sync waits for a working SOCKS handshake before declaring transport ready — prevents silent half-open mesh joins.',
   },
 ];
 
 const BUG_FIXES = [
-  'Telegram map pins are now HTML markers above threat-alert overlays — pins are clickable even when sharing a city grid with news intercept boxes.',
-  'Telegram geocoding uses metro anchors (not national centroids) and a small NE offset only when news alerts share the same city cell — pins stay on land.',
-  'Hourly Telegram scheduler with incremental post merge — no redundant full-channel re-scrape every cycle.',
-  'OpenClaw `get_slow_telemetry` previously omitted telegram_osint, malware_threats, cyber_threats, and scm_suppliers — now included in slow-tier and universal search.',
-  'OpenClaw agents can invoke the Recon panel backends via `osint_lookup` without raw `/api/osint/*` HTTP calls or local-operator browser auth.',
+  'Arti/Tor transport no longer omits SocksPort when MESH_ARTI_ENABLED — SOCKS probes succeed and wormhole sync can start.',
+  'Concurrent Arti readiness checks no longer wedge Tor under load; single-flight probes with auto-recycle when SOCKS stalls.',
+  'Infonet terminal exit no longer leaves background wormhole prep or terminalLaunchBusy stuck after close.',
+  'Stale onion sync backoff clears when transport recovers so NODE ARTI WARMING does not persist after Tor is healthy.',
+  'DM decrypt timeouts on multi-participant fleets addressed via improved peer push timing and mailbox claim sequencing.',
 ];
 
 type ChangelogContributor = {
@@ -109,8 +100,8 @@ type ChangelogContributor = {
 
 const CONTRIBUTORS: ChangelogContributor[] = [
   {
-    name: 'OSIRIS (simplifaisoul/osiris)',
-    desc: 'MIT-licensed recon stack — adapted for ShadowBroker proxy model (see backend/third_party/osiris/NOTICE.md)',
+    name: 'privacy-core (MLS)',
+    desc: 'Rust MLS gate crypto — WASM/FFI path for browser and Tauri sovereign shells',
   },
 ];
 
@@ -228,41 +219,18 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
               );
             })}
 
-            {/* Auto-update note for v0.9.81+ installs */}
+            {/* Auto-update note for v0.9.82+ installs */}
             <div className="border border-green-500/30 bg-green-950/15 p-3 flex items-start gap-3">
               <KeyRound size={18} className="text-green-400 mt-0.5 flex-shrink-0" />
               <div className="space-y-1">
                 <div className="text-xs font-mono text-green-300 font-bold tracking-wide uppercase">
-                  One-click update from v0.9.81
+                  One-click update from v0.9.82
                 </div>
                 <div className="text-xs font-mono text-green-200/80 leading-relaxed">
-                  If you installed v0.9.81, the in-app Update button verifies this release via the
-                  signed Tauri updater (`latest.json` + minisign). Desktop installs on v0.9.81 or
-                  later should auto-apply v0.9.82 without a manual MSI hop.
-                </div>
-              </div>
-            </div>
-
-            {/* Required-config callout: OpenSky API */}
-            <div className="border border-amber-500/40 bg-amber-950/20 p-3 flex items-start gap-3">
-              <Plane size={18} className="text-amber-400 mt-0.5 flex-shrink-0" />
-              <div className="space-y-1">
-                <div className="text-xs font-mono text-amber-300 font-bold tracking-wide uppercase">
-                  Required: OpenSky API credentials for airplane telemetry
-                </div>
-                <div className="text-xs font-mono text-amber-200/80 leading-relaxed">
-                  Set <span className="text-amber-100 font-bold">OPENSKY_CLIENT_ID</span> and{' '}
-                  <span className="text-amber-100 font-bold">OPENSKY_CLIENT_SECRET</span> in your{' '}
-                  <span className="text-amber-100 font-bold">.env</span>. Free registration:{' '}
-                  <a
-                    href="https://opensky-network.org/index.php?option=com_users&view=registration"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-amber-100 font-bold underline underline-offset-2 hover:text-amber-50"
-                  >
-                    opensky-network.org/register
-                  </a>
-                  .
+                  If you installed v0.9.82, the in-app Update button verifies this release via the
+                  signed Tauri updater (`latest.json` + minisign). Desktop installs on v0.9.82 or
+                  later should auto-apply v0.9.83 without a manual MSI hop once the release is
+                  published.
                 </div>
               </div>
             </div>

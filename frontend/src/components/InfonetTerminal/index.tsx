@@ -3,9 +3,7 @@
 import React, { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
-import {
-  ensureInfonetParticipantNodeReady,
-} from '@/mesh/controlPlaneStatusClient';
+import { beginInfonetTerminalSession } from '@/lib/infonetTerminalSession';
 import InfonetShell from './InfonetShell';
 
 interface InfonetTerminalProps {
@@ -38,7 +36,7 @@ export default function InfonetTerminal({
     const connectParticipantNode = async () => {
       try {
         if (cancelled) return;
-        await ensureInfonetParticipantNodeReady();
+        await beginInfonetTerminalSession();
       } catch {
         // Remote/shared viewers may not have local-operator rights. Leave manual controls intact.
       }

@@ -18,8 +18,7 @@ import ScaleBar from '@/components/ScaleBar';
 import MeshTerminal from '@/components/MeshTerminal';
 import MeshChat from '@/components/MeshChat';
 import InfonetTerminal from '@/components/InfonetTerminal';
-import { leaveWormhole, fetchWormholeState } from '@/mesh/wormholeClient';
-import { teardownWormholeOnClose } from '@/lib/wormholeTeardown';
+import { endInfonetTerminalSession } from '@/lib/infonetTerminalSession';
 import ShodanPanel from '@/components/ShodanPanel';
 import ReconPanel from '@/components/ReconPanel';
 import ScmPanel from '@/components/ScmPanel';
@@ -169,7 +168,13 @@ export default function Dashboard() {
   useEffect(() => subscribeMeshTerminalOpen(openInfonet), [openInfonet]);
 
   const toggleInfonet = useCallback(() => {
-    setInfonetOpen(prev => !prev);
+    setInfonetOpen((prev) => {
+      if (prev) {
+        void endInfonetTerminalSession();
+        return false;
+      }
+      return true;
+    });
   }, []);
 
   const [activeLayers, setActiveLayers] = useState<ActiveLayers>({
@@ -1024,8 +1029,7 @@ export default function Dashboard() {
           isOpen={infonetOpen}
           onClose={() => {
             setInfonetOpen(false);
-            // Shut down Wormhole when the terminal closes so it doesn't stay running
-            void teardownWormholeOnClose(fetchWormholeState, leaveWormhole);
+            void endInfonetTerminalSession();
           }}
           onOpenLiveGate={openLiveGateFromShell}
           onOpenDeadDrop={openDeadDropFromShell}

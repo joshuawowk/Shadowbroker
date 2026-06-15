@@ -1247,6 +1247,26 @@ def _local_infonet_peer_url() -> str:
         return ""
 
 
+def _clear_stale_arti_sync_backoff() -> None:
+    """Drop cached Arti warmup errors once SOCKS transport is actually ready."""
+    from dataclasses import replace
+
+    with _NODE_RUNTIME_LOCK:
+        current = get_sync_state()
+        error_lower = str(current.last_error or "").lower()
+        if "arti" not in error_lower and "onion sync requires" not in error_lower:
+            return
+        set_sync_state(
+            replace(
+                current,
+                last_error="",
+                consecutive_failures=0,
+                next_sync_due_at=int(time.time()),
+                last_outcome="idle" if current.last_outcome == "error" else current.last_outcome,
+            )
+        )
+
+
 def _ensure_infonet_private_transport_ready(reason: str = "") -> bool:
     """Warm the local onion transport before private Infonet sync.
 
@@ -1275,15 +1295,36 @@ def _ensure_infonet_private_transport_ready(reason: str = "") -> bool:
 
         label = f" ({reason})" if reason else ""
         logger.info("Infonet private transport warmup starting%s", label)
-        tor_result = tor_service.start(target_port=8000)
-        if tor_result.get("ok"):
+        from services.wormhole_supervisor import invalidate_arti_ready_cache
+
+        for attempt in range(3):
+            tor_result = tor_service.start(target_port=8000)
+            if not tor_result.get("ok"):
+                logger.warning(
+                    "Infonet private transport warmup incomplete%s: %s",
+                    label,
+                    tor_result,
+                )
+                continue
             _write_env_value("MESH_ARTI_ENABLED", "true")
             get_settings.cache_clear()
-            if _check_arti_ready():
-                logger.info("Infonet private transport ready%s", label)
-                threading.Thread(target=_swarm_bootstrap_after_transport_ready, daemon=True).start()
-                return True
-        logger.warning("Infonet private transport warmup incomplete%s: %s", label, tor_result)
+            invalidate_arti_ready_cache()
+            deadline = time.monotonic() + 30.0
+            while time.monotonic() < deadline:
+                if _check_arti_ready(force=True):
+                    logger.info("Infonet private transport ready%s", label)
+                    _clear_stale_arti_sync_backoff()
+                    threading.Thread(target=_swarm_bootstrap_after_transport_ready, daemon=True).start()
+                    _kick_public_sync_background(f"transport_ready{label}")
+                    return True
+                time.sleep(1.0)
+            logger.warning(
+                "Infonet private transport SOCKS not ready after Tor start (attempt %d/3)%s",
+                attempt + 1,
+                label,
+            )
+            tor_service.stop()
+        logger.warning("Infonet private transport warmup incomplete%s", label)
         return False
     except Exception as exc:
         logger.warning("Infonet private transport warmup failed: %s", exc)
@@ -11704,7 +11745,7 @@ async def api_wormhole_dm_contact_sever(request: Request, peer_id: str):
         return {"ok": False, "detail": str(exc)}
 
 
-_WORMHOLE_PUBLIC_FIELDS = {"installed", "configured", "running", "ready"}
+_WORMHOLE_PUBLIC_FIELDS = {"installed", "configured", "running", "ready", "arti_ready"}
 
 
 def _redact_wormhole_status(state: dict[str, Any], authenticated: bool) -> dict[str, Any]:

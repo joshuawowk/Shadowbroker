@@ -30,6 +30,7 @@ import {
 import {
   requestMeshTerminalOpen,
   subscribeSecureMeshTerminalLauncherOpen,
+  subscribeInfonetSessionEnd,
 } from '@/lib/meshTerminalLauncher';
 import { purgeBrowserContactGraph, purgeBrowserSigningMaterial, setSecureModeCached, getNodeIdentity, generateNodeKeys } from '@/mesh/meshIdentity';
 import { purgeBrowserDmState } from '@/mesh/meshDmWorkerClient';
@@ -42,6 +43,7 @@ import {
 import {
   fetchWormholeStatus,
   prepareWormholeInteractiveLane,
+  isWormholePrepAbortedError,
 } from '@/mesh/wormholeIdentityClient';
 import { fetchWormholeSettings } from '@/mesh/wormholeClient';
 import packageJson from '../../package.json';
@@ -172,8 +174,15 @@ export default function TopRightControls({
     });
   }, [openTerminalLauncher]);
 
+  useEffect(() => {
+    return subscribeInfonetSessionEnd(() => {
+      setTerminalLaunchBusy(false);
+      setTerminalLaunchError('');
+    });
+  }, []);
+
   const closeTerminalLauncher = () => {
-    if (terminalLaunchBusy) return;
+    setTerminalLaunchBusy(false);
     setTerminalLauncherOpen(false);
     setTerminalLaunchError('');
   };
@@ -215,6 +224,9 @@ export default function TopRightControls({
         console.info('[top-right] Wormhole terminal launch ready', identityNodeId);
       }
     } catch (error) {
+      if (isWormholePrepAbortedError(error)) {
+        return;
+      }
       const message =
         typeof error === 'object' && error !== null && 'message' in error
           ? String((error as { message?: string }).message || '')

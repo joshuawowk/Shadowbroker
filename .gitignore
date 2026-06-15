@@ -177,6 +177,8 @@ frontend/eslint-report.json
 .git_backup/
 local-artifacts/
 release-secrets/
+release-staging/
+.tmp-release-inspect/
 shadowbroker_repo/
 frontend/src/components.bak/
 frontend/src/components/map/icons/backups/

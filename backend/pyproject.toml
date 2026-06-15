@@ -7,7 +7,7 @@ py-modules = []
 
 [project]
 name = "backend"
-version = "0.9.82"
+version = "0.9.83"
 requires-python = ">=3.10"
 dependencies = [
     "apscheduler==3.10.3",

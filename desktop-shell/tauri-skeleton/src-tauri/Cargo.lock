@@ -4201,7 +4201,7 @@ dependencies = [
 
 [[package]]
 name = "shadowbroker-tauri-shell"
-version = "0.9.82"
+version = "0.9.83"
 dependencies = [
  "axum",
  "base64 0.22.1",

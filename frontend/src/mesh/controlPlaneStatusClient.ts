@@ -249,6 +249,13 @@ export async function startTorHiddenService(): Promise<TorHiddenServiceSnapshot>
   });
 }
 
+export async function stopTorHiddenService(): Promise<TorHiddenServiceSnapshot> {
+  return controlPlaneJson<TorHiddenServiceSnapshot>('/api/settings/tor/stop', {
+    method: 'POST',
+    requireAdminSession: false,
+  });
+}
+
 export interface InfonetSwarmJoinSnapshot {
   ok?: boolean;
   detail?: string;

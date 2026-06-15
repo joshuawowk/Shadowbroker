@@ -14,12 +14,25 @@ interface Stats {
   nodeEnabled: boolean;
   syncOutcome: string;
   syncError: string;
+  artiReady: boolean | null;
 }
 
 const EMPTY: Stats = {
   meshtastic: 0, aprs: 0, ledgerNodes: 0, infonetEvents: 0,
   syncPeers: 0, seedPeers: 0, nodeEnabled: false, syncOutcome: 'offline', syncError: '',
+  artiReady: null,
 };
+
+function isArtiTransportBlocked(syncError: string, artiReady: boolean | null): boolean {
+  if (artiReady === true) return false;
+  if (artiReady === false) return true;
+  const lower = syncError.toLowerCase();
+  return (
+    lower.includes('ready arti transport')
+    || lower.includes('require arti to be enabled')
+    || lower.includes('onion peer requests require a ready arti')
+  );
+}
 
 export default function NetworkStats() {
   const [stats, setStats] = useState<Stats>(EMPTY);
@@ -28,10 +41,11 @@ export default function NetworkStats() {
     let alive = true;
     const poll = async () => {
       try {
-        const [meshRes, channelsRes, infonet] = await Promise.all([
+        const [meshRes, channelsRes, infonet, wormholeRes] = await Promise.all([
           fetch(`${API_BASE}/api/mesh/status`).then(r => r.ok ? r.json() : null).catch(() => null),
           fetch(`${API_BASE}/api/mesh/channels`).then(r => r.ok ? r.json() : null).catch(() => null),
           fetchInfonetNodeStatusSnapshot(true).catch(() => null),
+          fetch(`${API_BASE}/api/wormhole/status`).then(r => r.ok ? r.json() : null).catch(() => null),
         ]);
         if (!alive) return;
         const authorNodes = Number(infonet?.author_nodes ?? infonet?.known_nodes ?? 0);
@@ -43,6 +57,7 @@ export default function NetworkStats() {
           ?? 0,
         );
         const syncOutcome = String(infonet?.sync_runtime?.last_outcome || 'offline').toLowerCase();
+        const artiReady = typeof wormholeRes?.arti_ready === 'boolean' ? wormholeRes.arti_ready : null;
         setStats({
           meshtastic: Number(channelsRes?.total_live || channelsRes?.total_nodes || meshRes?.signal_counts?.meshtastic || 0),
           aprs: Number(meshRes?.signal_counts?.aprs || 0),
@@ -53,6 +68,7 @@ export default function NetworkStats() {
           nodeEnabled: Boolean(infonet?.node_enabled),
           syncOutcome,
           syncError: String(infonet?.sync_runtime?.last_error || '').trim(),
+          artiReady,
         });
       } catch { /* ignore */ }
     };
@@ -61,8 +77,7 @@ export default function NetworkStats() {
     return () => { alive = false; clearInterval(interval); };
   }, []);
 
-  const syncErrorLower = stats.syncError.toLowerCase();
-  const artiBlocked = syncErrorLower.includes('arti') || syncErrorLower.includes('onion');
+  const artiBlocked = isArtiTransportBlocked(stats.syncError, stats.artiReady);
   const nodeColor = stats.syncOutcome === 'ok' || stats.syncOutcome === 'solo' ? 'text-green-400'
     : stats.syncOutcome === 'running' ? 'text-amber-400'
     : stats.nodeEnabled ? 'text-amber-400' : 'text-gray-600';

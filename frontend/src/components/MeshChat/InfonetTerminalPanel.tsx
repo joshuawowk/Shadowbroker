@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Shield } from 'lucide-react';
-import { ensureInfonetParticipantNodeReady } from '@/mesh/controlPlaneStatusClient';
+import { beginInfonetTerminalSession } from '@/lib/infonetTerminalSession';
 import InfonetShell from '@/components/InfonetTerminal/InfonetShell';
 
 type Props = {
@@ -98,7 +98,7 @@ export default function InfonetTerminalPanel({
     const connectParticipantNode = async () => {
       try {
         if (cancelled) return;
-        await ensureInfonetParticipantNodeReady();
+        await beginInfonetTerminalSession();
       } catch {
         // Remote viewers may not have local-operator rights.
       }

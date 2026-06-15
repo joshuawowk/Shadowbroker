@@ -11,8 +11,7 @@ import {
   SHELL_FLYOUT_WIDTH,
   type MeshChatFlyoutRect,
 } from './meshChatFlyout';
-import { fetchWormholeState, leaveWormhole } from '@/mesh/wormholeClient';
-import { teardownWormholeOnClose } from '@/lib/wormholeTeardown';
+import { endInfonetTerminalSession } from '@/lib/infonetTerminalSession';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Antenna,
@@ -439,7 +438,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
   }, []);
 
   const handleInfonetTeardown = useCallback(() => {
-    void teardownWormholeOnClose(fetchWormholeState, leaveWormhole);
+    void endInfonetTerminalSession();
   }, []);
 
   const panelFlyout =
