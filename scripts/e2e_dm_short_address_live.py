@@ -4,6 +4,7 @@
 Environment:
   PETE_SSH / REMOTE_PARTICIPANT_SSH — SSH host for remote participant (default: pete)
   E2E_DM_TOR_ONLY=1 — skip disk-inject fallbacks; require Tor replicate-envelope only
+  E2E_DM_LEAVE_LEAN_BACKEND=1 — keep MESH_ONLY lean backend after E2E (default: restore full telemetry)
   E2E_DM_DEPLOY_FROM_GIT=1 — remote participant: git pull + compose (no harness SCP patches)
   E2E_DM_FRESH_BACKEND=1 — recreate local lean E2E backend before run
   docker-compose.participant.yml — deploy lean participant on any fleet peer
@@ -67,6 +68,10 @@ LOCAL_COMPOSE_FILES = (
     "docker-compose.yml",
     "docker-compose.override.yml",
     "docker-compose.e2e.yml",
+)
+FULL_LOCAL_COMPOSE_FILES = (
+    "docker-compose.yml",
+    "docker-compose.override.yml",
 )
 
 _EMBED_SIGNED_MAILBOX_HELPERS = textwrap.dedent(
@@ -388,6 +393,42 @@ def _local_compose_cmd(*subcommand: str) -> list[str]:
         cmd.extend(["-f", compose_file])
     cmd.extend(subcommand)
     return cmd
+
+
+def _full_compose_cmd(*subcommand: str) -> list[str]:
+    cmd = ["docker", "compose"]
+    for compose_file in FULL_LOCAL_COMPOSE_FILES:
+        cmd.extend(["-f", compose_file])
+    cmd.extend(subcommand)
+    return cmd
+
+
+def _restore_local_full_backend() -> None:
+    """Return the dashboard backend to full telemetry mode after E2E (MESH_ONLY off)."""
+    if os.environ.get("E2E_DM_LEAVE_LEAN_BACKEND", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        return
+    print("== cleanup: restore full backend (telemetry / OSINT fetchers) ==")
+    proc = subprocess.run(
+        _full_compose_cmd("up", "-d", "--force-recreate", "backend"),
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+    )
+    if proc.returncode != 0:
+        print(
+            f"full backend restore failed: {proc.stderr.strip() or proc.stdout.strip() or 'compose error'}"
+        )
+        return
+    try:
+        _wait_local_backend_healthy(timeout_s=180)
+        print("full backend restored (MESH_ONLY off — map telemetry should return)")
+    except Exception as exc:
+        print(f"full backend restore health wait: {exc}")
 
 
 def _wait_local_backend_healthy(*, timeout_s: int = 300) -> None:
@@ -3524,8 +3565,15 @@ print(json.dumps({{
 
 
 if __name__ == "__main__":
+    exit_code = 1
     try:
-        raise SystemExit(main())
+        exit_code = main()
     except Exception as exc:
         print(f"E2E FAIL: {exc}", file=sys.stderr)
         raise
+    finally:
+        try:
+            _restore_local_full_backend()
+        except Exception as exc:
+            print(f"E2E cleanup: full backend restore skipped: {exc}", file=sys.stderr)
+    raise SystemExit(exit_code)

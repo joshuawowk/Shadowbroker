@@ -1,9 +1,9 @@
-# Lean fleet participant — Infonet swarm + DM relay without global OSINT fetchers.
-# Use on secondary nodes (e.g. Pete) that should stay responsive for Tor DM tests.
+# Fleet participant — Infonet swarm + DM relay. OSINT fetchers stay on unless
+# MESH_ONLY=true in .env (lean mode for DM-only E2E / low-memory nodes).
 services:
   backend:
     environment:
-      MESH_ONLY: "true"
+      MESH_ONLY: "${MESH_ONLY:-false}"
       SHADOWBROKER_MESH_NODE_RUNTIME: "true"
       MESH_ARTI_ENABLED: "true"
       MESH_INFONET_FLEET_JOIN: "true"
