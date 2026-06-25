@@ -77,6 +77,7 @@ from services.fetchers.infrastructure import (  # noqa: F401
     fetch_psk_reporter,
 )
 from services.fetchers.road_corridor_sat import fetch_road_corridor_trends  # noqa: F401
+from services.fetchers.airframes import sync_airframes_messages  # noqa: F401
 from services.fetchers.geo import (  # noqa: F401
     fetch_ships,
     fetch_airports,
@@ -1261,6 +1262,17 @@ def start_scheduler():
         max_instances=1,
         misfire_grace_time=300,
         next_run_time=datetime.utcnow() + timedelta(minutes=5),  # first snapshot 5m after startup
+    )
+
+    _airframes_interval_m = max(5, int(os.environ.get("AIRFRAMES_SYNC_INTERVAL_MINUTES", "15")))
+    _scheduler.add_job(
+        lambda: _run_task_with_health(sync_airframes_messages, "sync_airframes_messages"),
+        "interval",
+        minutes=_airframes_interval_m,
+        id="airframes_datalink",
+        max_instances=1,
+        misfire_grace_time=120,
+        next_run_time=datetime.utcnow() + timedelta(seconds=90),
     )
 
     _scheduler.start()

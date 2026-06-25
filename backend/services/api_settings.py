@@ -6,6 +6,7 @@ Keys are stored in the backend .env file and loaded via python-dotenv.
 import os
 import re
 import tempfile
+import threading
 from pathlib import Path
 
 # Path to the backend .env file
@@ -85,6 +86,15 @@ API_REGISTRY = [
         "description": "Optional NASA Earthdata MAP key for country-scoped VIIRS fire enrichment. Global VIIRS hotspots work without a key; set this only if you want per-country FIRMS detail. Free from NASA Earthdata.",
         "category": "Geophysical",
         "url": "https://firms.modaps.eosdis.nasa.gov/api/area/",
+        "required": False,
+    },
+    {
+        "id": "airframes_api_key",
+        "env_key": "AIRFRAMES_API_KEY",
+        "name": "Airframes.io — API Key",
+        "description": "ACARS/VDL datalink for plane dossiers. ShadowBroker bulk-ingests the global Airframes firehose (up to 100 messages per API call, one call every 2s, refill every 15 minutes) and indexes by tail/ICAO. Opening a dossier with no cache queues a single-plane lookup. Get a key at app.airframes.io → Dashboard → API Key.",
+        "category": "Aviation",
+        "url": "https://app.airframes.io/user/dashboard",
         "required": False,
     },
     {
@@ -364,6 +374,17 @@ def save_api_keys(updates: dict[str, str]) -> dict:
             flights.opensky_client.client_secret = os.environ.get("OPENSKY_CLIENT_SECRET", "")
             flights.opensky_client.token = None
             flights.opensky_client.expires_at = 0
+        except Exception:
+            pass
+    if "AIRFRAMES_API_KEY" in clean:
+        try:
+            from services.fetchers.airframes import sync_airframes_messages
+
+            threading.Thread(
+                target=lambda: sync_airframes_messages(force=True),
+                daemon=True,
+                name="airframes-initial-sync",
+            ).start()
         except Exception:
             pass
 

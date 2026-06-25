@@ -396,6 +396,52 @@ async def get_selected_ship_trail(mmsi: int, request: Request):  # noqa: ARG001
     return {"id": mmsi, "trail": get_vessel_trail(mmsi)}
 
 
+@router.get("/api/aviation/datalink/status")
+@limiter.limit("60/minute")
+async def aviation_datalink_status(request: Request):  # noqa: ARG001
+    from services.fetchers.airframes import get_datalink_status
+
+    return get_datalink_status()
+
+
+@router.get("/api/aviation/datalink/messages")
+@limiter.limit("240/minute")
+async def aviation_datalink_messages(
+    request: Request,  # noqa: ARG001
+    icao24: str = Query("", description="ICAO24 hex for the aircraft"),
+    registration: str = Query("", description="Tail / registration number"),
+    callsign: str = Query("", description="Optional callsign filter"),
+    live: bool = Query(
+        False,
+        description="When true, fetch from Airframes if cache has no messages (slower)",
+    ),
+):
+    from services.fetchers.airframes import lookup_datalink_messages
+
+    return lookup_datalink_messages(
+        icao24=icao24,
+        registration=registration,
+        callsign=callsign,
+        allow_live=live,
+    )
+
+
+@router.get("/api/sigint/meshtastic/status")
+@limiter.limit("120/minute")
+async def meshtastic_map_status(request: Request):  # noqa: ARG001
+    from services.fetchers.meshtastic_map import get_meshtastic_map_status
+
+    return get_meshtastic_map_status()
+
+
+@router.post("/api/sigint/meshtastic/scan", dependencies=[Depends(require_local_operator)])
+@limiter.limit("3/hour")
+async def meshtastic_planet_scan(request: Request):  # noqa: ARG001
+    from services.fetchers.meshtastic_map import start_meshtastic_planet_scan
+
+    return start_meshtastic_planet_scan()
+
+
 @router.post("/api/viewport")
 @limiter.limit("60/minute")
 async def update_viewport(vp: ViewportUpdate, request: Request):  # noqa: ARG001

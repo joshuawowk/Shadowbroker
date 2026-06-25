@@ -25,6 +25,7 @@ services:
       - WINDY_API_KEY=${WINDY_API_KEY:-}
       - ADMIN_KEY=${ADMIN_KEY:-}
       - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
+      - AIRFRAMES_API_KEY=${AIRFRAMES_API_KEY:-}
       # Override allowed CORS origins (comma-separated). Auto-detects LAN IPs if empty.
       - CORS_ORIGINS=${CORS_ORIGINS:-}
       # Private Infonet bootstrap seeds. Seeds are discovery hints, not fixed roots.
