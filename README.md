@@ -121,8 +121,7 @@ Open `http://localhost:3000` to view the dashboard! *(Requires [Docker Desktop](
 
 ---
 
-<details>
-<summary>🔄 How to Update</summary>
+🔄 How to Update
 
 ShadowBroker uses pre-built Docker images — no local building required. Updating takes seconds:
 
@@ -180,8 +179,6 @@ docker compose up -d
 * **Prune old images:** `docker image prune -f`
 * **Check logs:** `docker compose logs -f backend`
 
-
-</details>
 
 ---
 
