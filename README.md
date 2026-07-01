@@ -460,6 +460,16 @@ v0.9.7 turns ShadowBroker from a dashboard a human watches into an intelligence 
 
 **Connect an agent:** Open the AI Intel panel in the left sidebar, click **Connect Agent**, and copy the HMAC secret. From there, point any compatible agent at the channel — for OpenClaw, import `ShadowBrokerClient` from `openclaw-skills/shadowbroker/sb_query.py` (see `SKILL.md` for examples); for any other agent, use the same HMAC contract documented above (timestamp + nonce + body digest, tier-gated). Discovery: `GET /api/ai/tools` and `GET /api/ai/capabilities`. The channel is the protocol, not the agent.
 
+**Docker Compose + remote agents:** The dashboard UI talks to the backend over Docker's private bridge (trusted automatically). An OpenClaw agent running on the **host** (outside the container) hits `http://localhost:8000` from the Docker gateway IP — **HMAC is required** there. In AI Intel → **Connect Agent**, click **Bootstrap** then **Reveal**, copy `SHADOWBROKER_HMAC_SECRET` into your agent env, and restart the backend once so `data/openclaw.env` on the `backend_data` volume is loaded. Smoke-test with:
+
+```bash
+export SHADOWBROKER_URL=http://127.0.0.1:8000
+export SHADOWBROKER_HMAC_SECRET=<from Connect Agent modal>
+python openclaw-skills/shadowbroker/verify_hmac.py
+```
+
+Use the backend port (`:8000`), not the Next.js dashboard port (`:3000`). Hand-rolled signers must hash the exact POST bytes: `json.dumps(payload, separators=(",", ":"), sort_keys=True)`.
+
 ### ⏱️ Time Machine — Snapshot Playback (NEW in v0.9.7)
 
 A media-style transport for the entire telemetry feed. Treat the live map as a recording that can be scrubbed, paused, and replayed.
@@ -1127,6 +1137,7 @@ MESH_SAR_EARTHDATA_TOKEN=                     # NASA Earthdata token (paired wit
 MESH_SAR_COPERNICUS_USER=                     # Copernicus Data Space user (SAR Mode B — EGMS / EMS)
 MESH_SAR_COPERNICUS_TOKEN=                    # Copernicus token (paired with user above)
 OPENCLAW_ACCESS_TIER=restricted               # OpenClaw agent tier: "restricted" (read-only) or "full"
+# OPENCLAW_HMAC_SECRET=                         # Optional; UI Bootstrap persists to data/openclaw.env in Docker
 GFW_API_TOKEN=your_gfw_token                  # Global Fishing Watch — fishing_activity layer (Settings → Maritime)
 TELEGRAM_OSINT_ENABLED=true                   # Telegram OSINT layer (default on)
 TELEGRAM_OSINT_CHANNELS=osintdefender,...     # Comma-separated public channel slugs (see .env.example)
