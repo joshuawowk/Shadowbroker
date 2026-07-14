@@ -106,12 +106,12 @@ services:
       - OPENCLAW_HMAC_SECRET=${OPENCLAW_HMAC_SECRET:-}
     volumes:
       - backend_data:/app/data
-    labels:
-      homepage.group: "OSINT"
-      homepage.name: "ShadowBroker backend"
-      homepage.icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/shadowbroker.svg"
-      homepage.href: "http://192.168.0.160:8002/"
-      homepage.description: "ShadowBroker backend server"
+    # labels:
+    #   homepage.group: "OSINT"
+    #   homepage.name: "ShadowBroker backend"
+    #   homepage.icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/shadowbroker.svg"
+    #   homepage.href: "http://192.168.0.160:8002/"
+    #   homepage.description: "ShadowBroker backend server"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
@@ -139,12 +139,12 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    labels:
-      homepage.group: "OSINT"
-      homepage.name: "ShadowBroker frontend"
-      homepage.icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/shadowbroker.svg"
-      homepage.href: "http://192.168.0.160:8002/"
-      homepage.description: "ShadowBroker frontend web server"
+    # labels:
+    #   homepage.group: "OSINT"
+    #   homepage.name: "ShadowBroker frontend"
+    #   homepage.icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/shadowbroker.svg"
+    #   homepage.href: "http://192.168.0.160:8002/"
+    #   homepage.description: "ShadowBroker frontend web server"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
